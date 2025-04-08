@@ -4,12 +4,14 @@ import { IoClose } from 'react-icons/io5';
 import { useNavigate } from 'react-router-dom';
 import { useProducts } from '../context/ProductContext';
 import { findProducts } from '../utils/queryExtractor';
+import { endpoints } from '../config/api';
 
 const Chat = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { products } = useProducts();
   const [message, setMessage] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState([
     {
       text: "Hello! How can I help you find the perfect product?",
@@ -18,7 +20,82 @@ const Chat = ({ isOpen, onClose }) => {
     }
   ]);
 
-  // Initialize speech recognition
+  const handleSend = async () => {
+    if (!message.trim()) return;
+
+    const userMessage = {
+      text: message,
+      isUser: true,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setMessage('');
+    setLoading(true);
+
+    try {
+      // Get product matches
+      const { matches } = findProducts(message, products);
+      
+      console.log('Sending request to:', endpoints.chat);
+      console.log('Request payload:', {
+        message,
+        chatHistory: messages
+      });
+
+      // Get AI response
+      const response = await fetch(endpoints.chat, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message,
+          chatHistory: messages
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Server error:', errorData);
+        throw new Error(errorData.message || 'Failed to get response');
+      }
+      
+      const data = await response.json();
+      console.log('AI response:', data);
+      
+      const aiMessage = {
+        text: data.message,
+        isUser: false,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        products: matches.slice(0, 3)
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
+    } catch (error) {
+      console.error('Chat error details:', {
+        message: error.message,
+        stack: error.stack
+      });
+      const errorMessage = {
+        text: `Error: ${error.message}`,
+        isUser: false,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // Speech recognition handlers
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const recognition = SpeechRecognition ? new SpeechRecognition() : null;
 
@@ -59,95 +136,68 @@ const Chat = ({ isOpen, onClose }) => {
     }
   };
 
-  const generateAIResponse = (query, matchingProducts, extractedQuery) => {
-    let response = '';
-
-    if (matchingProducts.length === 0) {
-      return "I couldn't find any products matching your criteria. Could you please try with different specifications?";
-    }
-
-    // Build a more detailed response based on the extracted query
-    response = "I found ";
-    if (matchingProducts.length === 1) {
-      response += "1 product";
-    } else {
-      response += `${matchingProducts.length} products`;
-    }
-
-    // Add query details to response
-    const queryDetails = [];
-    if (extractedQuery.category) {
-      queryDetails.push(`in ${extractedQuery.category}`);
-    }
-    if (extractedQuery.color) {
-      queryDetails.push(`in ${extractedQuery.color.join(' or ')} color`);
-    }
-    if (extractedQuery.priceConstraint) {
-      queryDetails.push(`under $${extractedQuery.priceConstraint}`);
-    }
-    if (extractedQuery.features.length > 0) {
-      queryDetails.push(`with ${extractedQuery.features.join(', ')}`);
-    }
-
-    if (queryDetails.length > 0) {
-      response += ` ${queryDetails.join(', ')}`;
-    }
-
-    response += ". Here are the best matches:";
-    return response;
+  const formattedResponse = {
+    title: "Recommended 1.5 Ton AC Models",
+    models: [
+      {
+        brand: "LG",
+        model: "1.5 Ton 5 Star Inverter Split AC",
+        features: [
+          "Dual Inverter Compressor",
+          "Low noise operation",
+          "Energy efficient",
+          "Smart diagnosis system"
+        ]
+      },
+      {
+        brand: "Voltas",
+        model: "1.5 Ton 5 Star Inverter Split AC",
+        features: [
+          "Adjustable cooling",
+          "Anti-dust filter",
+          "Copper condenser",
+          "High energy efficiency"
+        ]
+      },
+      {
+        brand: "Daikin",
+        model: "1.5 Ton 5 Star Inverter Split AC",
+        features: [
+          "Power Chill operation",
+          "Coanda airflow",
+          "Econo mode",
+          "Premium build quality"
+        ]
+      },
+      {
+        brand: "Blue Star",
+        model: "1.5 Ton 5 Star Inverter Split AC",
+        features: [
+          "Precision cooling",
+          "Self-diagnosis",
+          "Dust filter",
+          "Hydrophilic coating"
+        ]
+      }
+    ],
+    note: "All models feature 5-star energy ratings and inverter technology for optimal performance."
   };
 
-  const handleSend = () => {
-    if (message.trim()) {
-      // Add user message
-      setMessages(prev => [...prev, {
-        text: message,
-        isUser: true,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }]);
+  // You can then use this to display in your chat interface:
+  const displayResponse = `Here are some highly recommended 1.5 ton AC models:
 
-      // Process query and find matching products
-      const { query, matches } = findProducts(message, products);
-      
-      // Log the extracted query object
-      console.log('Extracted Query:', {
-        message: message,
-        extracted: query,
-        matchCount: matches.length,
-        matches: matches.map(m => m.name)
-      });
+  ${formattedResponse.models.map((ac, index) => `
+  ${index + 1}. ${ac.brand} ${ac.model}
+     Key Features:
+     ${ac.features.map(feature => `• ${feature}`).join('\n     ')}
+  `).join('\n')}
 
-      // Generate AI response
-      setTimeout(() => {
-        setMessages(prev => [...prev, {
-          text: generateAIResponse(message, matches, query),
-          isUser: false,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          products: matches.slice(0, 3), // Show top 3 matching products
-          queryDetails: query // Add extracted query details to message
-        }]);
-      }, 1000);
-
-      setMessage('');
-    }
-  };
-
-  const handleProductClick = (productId) => {
-    navigate(`/product/${productId}`);
-    onClose();
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+  Note: ${formattedResponse.note}`;
 
   return (
     <div className={`chat-container ${isOpen ? 'open' : ''}`}>
       <div className="chat-header">
-        <h3>AI Assistant</h3>
+        <h3>AI Shopping Assistant</h3>
         <button onClick={onClose} className="close-button">
           <IoClose />
         </button>
@@ -155,16 +205,19 @@ const Chat = ({ isOpen, onClose }) => {
       
       <div className="chat-messages">
         {messages.map((msg, index) => (
-          <div key={index} className={`message ${msg.isUser ? 'user-message' : 'assistant-message'}`}>
+          <div
+            key={index}
+            className={`message ${msg.isUser ? 'user-message' : 'assistant-message'}`}
+          >
             <div className="message-content">
               <p>{msg.text}</p>
               {msg.products && msg.products.length > 0 && (
                 <div className="product-suggestions">
-                  {msg.products.map(product => (
-                    <div 
-                      key={product._id} 
+                  {msg.products.map((product, idx) => (
+                    <div
+                      key={idx}
                       className="suggested-product"
-                      onClick={() => handleProductClick(product._id)}
+                      onClick={() => navigate(`/product/${product._id}`)}
                     >
                       <img src={product.images[0]} alt={product.name} />
                       <div className="product-info">
@@ -184,6 +237,13 @@ const Chat = ({ isOpen, onClose }) => {
             </div>
           </div>
         ))}
+        {loading && (
+          <div className="message assistant-message">
+            <div className="message-content">
+              <p>Thinking...</p>
+            </div>
+          </div>
+        )}
       </div>
       
       <div className="chat-input">
@@ -191,16 +251,22 @@ const Chat = ({ isOpen, onClose }) => {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder="Type your message... (e.g., 'show me gaming keyboards under 150')"
+          placeholder="Type your message..."
           rows="1"
+          disabled={loading}
         />
         <button 
           className={`mic-button ${isListening ? 'listening' : ''}`}
           onClick={handleMicClick}
+          disabled={loading}
         >
           <IoMicSharp />
         </button>
-        <button className="send-button" onClick={handleSend}>
+        <button 
+          className="send-button" 
+          onClick={handleSend}
+          disabled={loading || !message.trim()}
+        >
           <IoSendSharp />
         </button>
       </div>
