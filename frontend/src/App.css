@@ -508,7 +508,8 @@ body {
 }
 
 /* Loading and error states */
-.loading, .error {
+.loading,
+.error {
   color: var(--text-primary);
 }
 
@@ -786,4 +787,13 @@ body {
 .admin-header h1 {
   color: var(--text-primary);
   margin: 0;
+}
+
+#login-btn {
+  color: #000;
+  text-decoration: none;
+  background-color: #fafafa;
+  padding: 2% 5%;
+  margin: 0 2%;
+  border-radius: 20px;
 }
